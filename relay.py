@@ -2,11 +2,15 @@
 import httpx
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import Response
+import os
+from dotenv import load_dotenv
 
+load_dotenv()
 app = FastAPI(title="Bus Tracking HTTP Relay")
+BACKEND_URL = os.getenv("BACKEND_URL").rstrip("/")
 
-# UPDATE with your current Cloudflare backend URL
-BACKEND_URL = "https://voted-wholesale-tune-headlines.trycloudflare.com"
+if not BACKEND_URL:
+    raise RuntimeError("BACKEND_URL is missing from .env")
 
 
 @app.get("/")
