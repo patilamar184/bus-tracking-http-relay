@@ -1,20 +1,59 @@
 
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+import httpx
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import Response
 
 app = FastAPI(title="Bus Tracking HTTP Relay")
+
+# UPDATE with your current Cloudflare backend URL
+BACKEND_URL = "https://voted-wholesale-tune-headlines.trycloudflare.com"
+
 
 @app.get("/")
 def home():
     return {"status": "Relay server running"}
 
-@app.post("/api/device/heartbeat")
-async def heartbeat(request: Request):
-    data = await request.json()
 
-    print("Heartbeat received:", data)
+@app.post("/api/device/{endpoint}")
+async def device_proxy(endpoint: str, request: Request):
 
-    return JSONResponse({
-        "status": "received",
-        "device_id": data.get("device_id")
-    })
+    if endpoint not in ["heartbeat", "location"]:
+        raise HTTPException(
+            status_code=404,
+            detail="Device endpoint not found"
+        )
+
+    body = await request.body()
+
+    headers = {
+        "Content-Type": "application/json",
+        "X-API-Key": request.headers.get("X-API-Key", "")
+    }
+
+    async with httpx.AsyncClient(timeout=60) as client:
+        try:
+            result = await client.post(
+                f"{BACKEND_URL}/api/device/{endpoint}",
+                content=body,
+                headers=headers
+            )
+
+        except httpx.RequestError as e:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Backend connection failed: {str(e)}"
+            )
+
+    print(
+        f"Backend response [{endpoint}]:",
+        result.status_code,
+        result.text
+    )
+
+    return Response(
+        content=result.content,
+        status_code=result.status_code,
+        media_type=result.headers.get(
+            "content-type", "application/json"
+        )
+    )
